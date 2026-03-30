@@ -32,6 +32,10 @@ const usingDemo = ref(false)
 const smoothState = ref<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0 })
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max)
+const BASS_THRESHOLD = 0.1
+const MID_THRESHOLD = 0.5
+const SMOOTHING_FACTOR = 0.8
+const NEW_VALUE_WEIGHT = 1 - SMOOTHING_FACTOR
 
 async function initAudio(shouldRequestMic = true) {
   if (isInitialized.value && (!shouldRequestMic || !usingDemo.value)) return
@@ -95,8 +99,8 @@ function analyzeAudio() {
     const dataArray = new Uint8Array(bufferLength)
     analyser.value.getByteFrequencyData(dataArray)
     
-    const bassEnd = Math.max(1, Math.floor(bufferLength * 0.1))
-    const midEnd = Math.max(bassEnd + 1, Math.floor(bufferLength * 0.5))
+    const bassEnd = Math.max(1, Math.floor(bufferLength * BASS_THRESHOLD))
+    const midEnd = Math.max(bassEnd + 1, Math.floor(bufferLength * MID_THRESHOLD))
     
     let bassSum = 0, midSum = 0, trebleSum = 0
     
@@ -118,10 +122,10 @@ function analyzeAudio() {
   }
 
   smoothState.value = {
-    bass: smoothState.value.bass * 0.8 + normalized.bass * 0.2,
-    mid: smoothState.value.mid * 0.8 + normalized.mid * 0.2,
-    treble: smoothState.value.treble * 0.8 + normalized.treble * 0.2,
-    overall: smoothState.value.overall * 0.8 + normalized.overall * 0.2
+    bass: smoothState.value.bass * SMOOTHING_FACTOR + normalized.bass * NEW_VALUE_WEIGHT,
+    mid: smoothState.value.mid * SMOOTHING_FACTOR + normalized.mid * NEW_VALUE_WEIGHT,
+    treble: smoothState.value.treble * SMOOTHING_FACTOR + normalized.treble * NEW_VALUE_WEIGHT,
+    overall: smoothState.value.overall * SMOOTHING_FACTOR + normalized.overall * NEW_VALUE_WEIGHT
   }
   
   emit('audio-data', smoothState.value)
