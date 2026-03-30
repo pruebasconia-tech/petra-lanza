@@ -31,11 +31,26 @@ const animationId = ref<number | null>(null)
 const usingDemo = ref(false)
 const smoothState = ref<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0 })
 
-const clamp = (value: number, min = 0, max = 1) => Math.max(min, Math.min(value, max))
+const clampValue = (value: number, min = 0, max = 1) => Math.max(min, Math.min(value, max))
 const BASS_THRESHOLD = 0.1
 const MID_THRESHOLD = 0.5
 const SMOOTHING_FACTOR = 0.8
 const NEW_VALUE_WEIGHT = 1 - SMOOTHING_FACTOR
+
+function calculateFrequencyBands(bufferLength: number) {
+  const bassEnd = Math.max(1, Math.floor(bufferLength * BASS_THRESHOLD))
+  const midEnd = Math.min(
+    bufferLength - 1,
+    Math.max(bassEnd + 1, Math.floor(bufferLength * MID_THRESHOLD))
+  )
+
+  return {
+    bassEnd,
+    midEnd,
+    midRange: Math.max(1, midEnd - bassEnd),
+    trebleRange: Math.max(1, bufferLength - midEnd)
+  }
+}
 
 async function initAudio(shouldRequestMic = true) {
   if (isInitialized.value && (!shouldRequestMic || !usingDemo.value)) return
@@ -105,13 +120,7 @@ function analyzeAudio() {
     const dataArray = new Uint8Array(bufferLength)
     analyser.value.getByteFrequencyData(dataArray)
     
-    const bassEnd = Math.max(1, Math.floor(bufferLength * BASS_THRESHOLD))
-    const midEnd = Math.min(
-      bufferLength - 1,
-      Math.max(bassEnd + 1, Math.floor(bufferLength * MID_THRESHOLD))
-    )
-    const midRange = Math.max(1, midEnd - bassEnd)
-    const trebleRange = Math.max(1, bufferLength - midEnd)
+    const { bassEnd, midEnd, midRange, trebleRange } = calculateFrequencyBands(bufferLength)
     
     let bassSum = 0, midSum = 0, trebleSum = 0
     
@@ -126,10 +135,10 @@ function analyzeAudio() {
   }
 
   const normalized = {
-    bass: clamp(Math.pow(bass, 0.8)),
-    mid: clamp(Math.pow(mid, 0.8)),
-    treble: clamp(Math.pow(treble, 0.8)),
-    overall: clamp(Math.pow(overall, 0.8))
+    bass: clampValue(Math.pow(bass, 0.8)),
+    mid: clampValue(Math.pow(mid, 0.8)),
+    treble: clampValue(Math.pow(treble, 0.8)),
+    overall: clampValue(Math.pow(overall, 0.8))
   }
 
   smoothState.value = {
