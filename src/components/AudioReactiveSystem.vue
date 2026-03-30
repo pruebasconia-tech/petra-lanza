@@ -31,7 +31,7 @@ const animationId = ref<number | null>(null)
 const usingDemo = ref(false)
 const smoothState = ref<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0 })
 
-const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max)
+const clamp = (value: number, min = 0, max = 1) => Math.max(min, Math.min(value, max))
 const BASS_THRESHOLD = 0.1
 const MID_THRESHOLD = 0.5
 const SMOOTHING_FACTOR = 0.8
@@ -100,7 +100,12 @@ function analyzeAudio() {
     analyser.value.getByteFrequencyData(dataArray)
     
     const bassEnd = Math.max(1, Math.floor(bufferLength * BASS_THRESHOLD))
-    const midEnd = Math.max(bassEnd + 1, Math.floor(bufferLength * MID_THRESHOLD))
+    const midEnd = Math.min(
+      bufferLength - 1,
+      Math.max(bassEnd + 1, Math.floor(bufferLength * MID_THRESHOLD))
+    )
+    const midRange = Math.max(1, midEnd - bassEnd)
+    const trebleRange = Math.max(1, bufferLength - midEnd)
     
     let bassSum = 0, midSum = 0, trebleSum = 0
     
@@ -109,8 +114,8 @@ function analyzeAudio() {
     for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i] || 0
     
     bass = bassSum / (bassEnd * 255) || 0
-    mid = midSum / ((midEnd - bassEnd) * 255) || 0
-    treble = trebleSum / ((bufferLength - midEnd) * 255) || 0
+    mid = midSum / (midRange * 255) || 0
+    treble = trebleSum / (trebleRange * 255) || 0
     overall = (bass + mid + treble) / 3
   }
 
