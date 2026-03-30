@@ -65,8 +65,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <TresGroup>
-    <TresGroup v-for="orb in orbs" :key="orb.id" :position="orb.position" v-show="!orb.collected">
+  <TresGroup :rotation="[0, audioData.overall * 0.8, 0]">
+    <TresGroup 
+      v-for="orb in orbs" 
+      :key="orb.id" 
+      :position="[orb.position[0], orb.position[1] + audioData.mid * 2, orb.position[2]]" 
+      v-show="!orb.collected"
+    >
       <TresMesh @click="collectOrb(orb.id)">
         <TresSphereGeometry :args="[1.5 + audioData.bass * 0.5, 16, 16]" />
         <TresMeshStandardMaterial 
