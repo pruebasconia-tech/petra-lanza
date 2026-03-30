@@ -1,5 +1,18 @@
-# Vue 3 + TypeScript + Vite
+# PETRA LANZA
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Experiencia 3D con Vue + TresJS lista para publicarse en GitHub Pages y con un sistema de audio reactivo que ahora incluye modo demo suavizado para que la animación nunca quede estática aunque el navegador no otorgue permisos de micrófono.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Ejecutar
+
+```bash
+npm install
+npm run dev
+```
+
+## Build (incluye base relativa para GitHub Pages)
+
+```bash
+npm run build
+```
+
+El `vite.config.ts` usa `base: './'` para que los assets funcionen correctamente bajo la ruta del repositorio en GitHub Pages.

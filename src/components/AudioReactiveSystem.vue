@@ -3,6 +3,11 @@ import { ref, watch, onUnmounted } from 'vue'
 
 interface Props {
   enabled: boolean
+  /**
+   * When true, keep emitting smooth demo data even if the microphone
+   * isn't enabled so the experience never feels static.
+   */
+  allowDemo?: boolean
 }
 
 interface AudioData {
@@ -12,7 +17,9 @@ interface AudioData {
   overall: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  allowDemo: true
+})
 const emit = defineEmits<{
   (e: 'audio-data', data: AudioData): void
 }>()
@@ -21,23 +28,45 @@ const audioContext = ref<AudioContext | null>(null)
 const analyser = ref<AnalyserNode | null>(null)
 const isInitialized = ref(false)
 const animationId = ref<number | null>(null)
+const usingDemo = ref(false)
+const smoothState = ref<AudioData>({ bass: 0, mid: 0, treble: 0, overall: 0 })
 
-async function initAudio() {
-  if (isInitialized.value) return
+const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max)
+
+async function initAudio(shouldRequestMic = true) {
+  if (isInitialized.value && (!shouldRequestMic || !usingDemo.value)) return
   
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    audioContext.value = new AudioCtx()
-    analyser.value = audioContext.value.createAnalyser()
+    if (!audioContext.value) {
+      audioContext.value = new AudioCtx()
+    }
+
+    if (!analyser.value) {
+      analyser.value = audioContext.value.createAnalyser()
+    }
+
+    if (audioContext.value.state === 'suspended') {
+      await audioContext.value.resume()
+    }
+
     analyser.value.fftSize = 256
     analyser.value.smoothingTimeConstant = 0.8
+    analyser.value.minDecibels = -90
+    analyser.value.maxDecibels = -10
     
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const source = audioContext.value.createMediaStreamSource(stream)
-      source.connect(analyser.value)
-    } catch {
-      console.log('Using demo mode')
+    if (shouldRequestMic) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const source = audioContext.value.createMediaStreamSource(stream)
+        source.connect(analyser.value)
+        usingDemo.value = false
+      } catch {
+        usingDemo.value = true
+        console.log('Using demo mode')
+      }
+    } else {
+      usingDemo.value = true
     }
     
     isInitialized.value = true
@@ -50,30 +79,52 @@ async function initAudio() {
 function analyzeAudio() {
   if (!analyser.value) return
   
-  const bufferLength = analyser.value.frequencyBinCount
-  const dataArray = new Uint8Array(bufferLength)
-  analyser.value.getByteFrequencyData(dataArray)
+  let bass = 0
+  let mid = 0
+  let treble = 0
+  let overall = 0
+
+  if (usingDemo.value) {
+    const t = performance.now() * 0.002
+    bass = (Math.sin(t) + 1) / 2
+    mid = (Math.sin(t * 0.8 + 1) + 1) / 2
+    treble = (Math.sin(t * 1.2 + 2) + 1) / 2
+    overall = (bass + mid + treble) / 3
+  } else {
+    const bufferLength = analyser.value.frequencyBinCount
+    const dataArray = new Uint8Array(bufferLength)
+    analyser.value.getByteFrequencyData(dataArray)
+    
+    const bassEnd = Math.max(1, Math.floor(bufferLength * 0.1))
+    const midEnd = Math.max(bassEnd + 1, Math.floor(bufferLength * 0.5))
+    
+    let bassSum = 0, midSum = 0, trebleSum = 0
+    
+    for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i] || 0
+    for (let i = bassEnd; i < midEnd; i++) midSum += dataArray[i] || 0
+    for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i] || 0
+    
+    bass = bassSum / (bassEnd * 255) || 0
+    mid = midSum / ((midEnd - bassEnd) * 255) || 0
+    treble = trebleSum / ((bufferLength - midEnd) * 255) || 0
+    overall = (bass + mid + treble) / 3
+  }
+
+  const normalized = {
+    bass: clamp(Math.pow(bass, 0.8)),
+    mid: clamp(Math.pow(mid, 0.8)),
+    treble: clamp(Math.pow(treble, 0.8)),
+    overall: clamp(Math.pow(overall, 0.8))
+  }
+
+  smoothState.value = {
+    bass: smoothState.value.bass * 0.8 + normalized.bass * 0.2,
+    mid: smoothState.value.mid * 0.8 + normalized.mid * 0.2,
+    treble: smoothState.value.treble * 0.8 + normalized.treble * 0.2,
+    overall: smoothState.value.overall * 0.8 + normalized.overall * 0.2
+  }
   
-  const bassEnd = Math.floor(bufferLength * 0.1)
-  const midEnd = Math.floor(bufferLength * 0.5)
-  
-  let bassSum = 0, midSum = 0, trebleSum = 0
-  
-  for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i] || 0
-  for (let i = bassEnd; i < midEnd; i++) midSum += dataArray[i] || 0
-  for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i] || 0
-  
-  const bass = bassSum / (bassEnd * 255) || 0
-  const mid = midSum / ((midEnd - bassEnd) * 255) || 0
-  const treble = trebleSum / ((bufferLength - midEnd) * 255) || 0
-  const overall = (bass + mid + treble) / 3
-  
-  emit('audio-data', {
-    bass: Math.pow(bass, 0.8),
-    mid: Math.pow(mid, 0.8),
-    treble: Math.pow(treble, 0.8),
-    overall: Math.pow(overall, 0.8)
-  })
+  emit('audio-data', smoothState.value)
   
   animationId.value = requestAnimationFrame(analyzeAudio)
 }
@@ -90,16 +141,22 @@ function stopAudio() {
   }
   
   isInitialized.value = false
+  usingDemo.value = false
+  smoothState.value = { bass: 0, mid: 0, treble: 0, overall: 0 }
 }
 
-watch(() => props.enabled, (newValue) => {
-  if (newValue) {
-    initAudio()
-  } else {
-    stopAudio()
-    emit('audio-data', { bass: 0, mid: 0, treble: 0, overall: 0 })
-  }
-})
+watch(
+  () => props.enabled || props.allowDemo,
+  (shouldRun) => {
+    if (shouldRun) {
+      initAudio(props.enabled)
+    } else {
+      stopAudio()
+      emit('audio-data', { bass: 0, mid: 0, treble: 0, overall: 0 })
+    }
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
   stopAudio()

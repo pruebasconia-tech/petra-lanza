@@ -99,7 +99,11 @@ onMounted(() => {
       />
     </TresCanvas>
 
-    <AudioReactiveSystem :enabled="audioEnabled" @audio-data="onAudioData" />
+    <AudioReactiveSystem 
+      :enabled="audioEnabled" 
+      :allow-demo="true"
+      @audio-data="onAudioData" 
+    />
 
     <div class="ui-overlay">
       <div class="top-bar">

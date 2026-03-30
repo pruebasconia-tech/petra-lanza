@@ -7,7 +7,7 @@ const props = defineProps<Props>()
 </script>
 
 <template>
-  <TresGroup :position="[0, 12, 0]">
+  <TresGroup :position="[0, 12 + audioData.overall * 3, 0]" :rotation="[0, audioData.mid * 0.8, 0]">
     <TresMesh :position="[0, 0, 0]">
       <TresSphereGeometry :args="[4, 32, 32]" />
       <TresMeshStandardMaterial 
