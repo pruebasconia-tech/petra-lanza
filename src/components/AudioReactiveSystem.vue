@@ -18,7 +18,7 @@ interface AudioData {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  allowDemo: true
+  allowDemo: false
 })
 const emit = defineEmits<{
   (e: 'audio-data', data: AudioData): void
@@ -87,6 +87,13 @@ function analyzeAudio() {
   let mid = 0
   let treble = 0
   let overall = 0
+  const bufferLength = analyser.value.frequencyBinCount
+
+  if (!bufferLength) {
+    emit('audio-data', smoothState.value)
+    animationId.value = requestAnimationFrame(analyzeAudio)
+    return
+  }
 
   if (usingDemo.value) {
     const t = performance.now() * 0.002
@@ -95,7 +102,6 @@ function analyzeAudio() {
     treble = (Math.sin(t * 1.2 + 2) + 1) / 2
     overall = (bass + mid + treble) / 3
   } else {
-    const bufferLength = analyser.value.frequencyBinCount
     const dataArray = new Uint8Array(bufferLength)
     analyser.value.getByteFrequencyData(dataArray)
     
@@ -155,10 +161,12 @@ function stopAudio() {
 }
 
 watch(
-  () => props.enabled || props.allowDemo,
-  (shouldRun) => {
+  () => [props.enabled, props.allowDemo],
+  ([enabled, allowDemo]) => {
+    const shouldRun = enabled || allowDemo
+
     if (shouldRun) {
-      initAudio(props.enabled)
+      initAudio(enabled)
     } else {
       stopAudio()
       emit('audio-data', { bass: 0, mid: 0, treble: 0, overall: 0 })
