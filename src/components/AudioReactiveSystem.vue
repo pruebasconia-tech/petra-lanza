@@ -53,7 +53,16 @@ function calculateFrequencyBands(bufferLength: number) {
 }
 
 async function initAudio(shouldRequestMic = true) {
-  if (isInitialized.value && (!shouldRequestMic || !usingDemo.value)) return
+  if (isInitialized.value) {
+    const isSwitchingToMic = shouldRequestMic && usingDemo.value
+    const isSwitchingToDemo = !shouldRequestMic && !usingDemo.value
+
+    if (isSwitchingToDemo) {
+      stopAudio()
+    } else if (!isSwitchingToMic) {
+      return
+    }
+  }
   
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
@@ -110,11 +119,12 @@ function analyzeAudio() {
     return
   }
 
+  const time = performance.now() * 0.002
+
   if (usingDemo.value) {
-    const t = performance.now() * 0.002
-    bass = (Math.sin(t) + 1) / 2
-    mid = (Math.sin(t * 0.8 + 1) + 1) / 2
-    treble = (Math.sin(t * 1.2 + 2) + 1) / 2
+    bass = (Math.sin(time) + 1) / 2
+    mid = (Math.sin(time * 0.8 + 1) + 1) / 2
+    treble = (Math.sin(time * 1.2 + 2) + 1) / 2
     overall = (bass + mid + treble) / 3
   } else {
     const dataArray = new Uint8Array(bufferLength)
@@ -124,9 +134,9 @@ function analyzeAudio() {
     
     let bassSum = 0, midSum = 0, trebleSum = 0
     
-    for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i] || 0
-    for (let i = bassEnd; i < midEnd; i++) midSum += dataArray[i] || 0
-    for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i] || 0
+    for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i] ?? 0
+    for (let i = bassEnd; i < midEnd; i++) midSum += dataArray[i] ?? 0
+    for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i] ?? 0
     
     bass = bassSum / (bassEnd * 255) || 0
     mid = midSum / (midRange * 255) || 0
@@ -172,9 +182,9 @@ function stopAudio() {
 watch(
   () => [props.enabled, props.allowDemo],
   ([enabled, allowDemo]) => {
-    const shouldRun = enabled || allowDemo
+    const shouldBeActive = enabled || allowDemo
 
-    if (shouldRun) {
+    if (shouldBeActive) {
       initAudio(enabled)
     } else {
       stopAudio()
