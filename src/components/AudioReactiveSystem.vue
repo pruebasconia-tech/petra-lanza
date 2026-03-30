@@ -39,10 +39,8 @@ const NEW_VALUE_WEIGHT = 1 - SMOOTHING_FACTOR
 
 function calculateFrequencyBands(bufferLength: number) {
   const bassEnd = Math.max(1, Math.floor(bufferLength * BASS_THRESHOLD))
-  const midEnd = Math.min(
-    bufferLength - 1,
-    Math.max(bassEnd + 1, Math.floor(bufferLength * MID_THRESHOLD))
-  )
+  const rawMidEnd = Math.floor(bufferLength * MID_THRESHOLD)
+  const midEnd = Math.min(bufferLength - 1, Math.max(bassEnd + 1, rawMidEnd))
 
   return {
     bassEnd,
@@ -134,9 +132,9 @@ function analyzeAudio() {
     
     let bassSum = 0, midSum = 0, trebleSum = 0
     
-    for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i] ?? 0
-    for (let i = bassEnd; i < midEnd; i++) midSum += dataArray[i] ?? 0
-    for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i] ?? 0
+    for (let i = 0; i < bassEnd; i++) bassSum += dataArray[i]!
+    for (let i = bassEnd; i < midEnd; i++) midSum += dataArray[i]!
+    for (let i = midEnd; i < bufferLength; i++) trebleSum += dataArray[i]!
     
     bass = bassSum / (bassEnd * 255) || 0
     mid = midSum / (midRange * 255) || 0
